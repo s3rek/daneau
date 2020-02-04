@@ -3,12 +3,17 @@ from math import sqrt
 import datetime
 from Tkinter import *
 import Tkinter, Tkconstants, tkFileDialog
+import tkMessageBox
 current_time1 = datetime.datetime.now()
 
 root = Tk()
 root.baselink = tkFileDialog.askopenfilename(initialdir = "/",title = "Select FDB",filetypes = (("firebird base","*.fdb"),("all files","*.*")))
 root.csvlink = tkFileDialog.askopenfilename(initialdir = "/",title = "Select CSV",filetypes = (("CSV","*.csv"),("all files","*.*")))
+
+choice = tkMessageBox.askquestion("Tak/Nie", "Czy uwzglednic typy linii?", icon='warning')
+
 print root.baselink
+print choice
 #root.baselink=r'C:/Users/Dell/Desktop/BDOTtst.FDB'
 #root.csvlink=r"P:/dt/sdrpk.csv"
 tol=0.01
@@ -52,15 +57,31 @@ for row in rows:
         Ymax=max(scndWKTy,frstWKTy)+tol
         Xmin=min(frstWKTx,scndWKTx)-tol
         Ymin=min(scndWKTy,frstWKTy)-tol
+
+        def roundTime(dt=None, dateDelta=datetime.timedelta(minutes=1)):
+            """Round a datetime object to a multiple of a timedelta
+            dt : datetime.datetime object, default now.
+            dateDelta : timedelta object, we round to a multiple of this, default 1 minute.
+            Author: Thierry Husson 2012 - Use it as you want but don't blame me.
+                    Stijn Nevens 2014 - Changed to use only datetime objects as variables
+            """
+            roundTo = dateDelta.total_seconds()
+
+            if dt == None : dt = datetime.datetime.now()
+            seconds = (dt - dt.min).seconds
+            # // is a floor division, not a comment on following line:
+            rounding = (seconds+roundTo/2) // roundTo * roundTo
+            return dt + datetime.timedelta(0,rounding-seconds,-dt.microsecond)
+
         try:
             modDate=datetime.datetime.strptime(datamod, "%Y.%m.%d.%H.%M.%S")
         except:
-             modDate=str(datetime.datetime.now())[:-7]
+             modDate=str(roundTime(datetime.datetime.now(),datetime.timedelta(minutes=15)))
              modDate=datetime.datetime.strptime(modDate, "%Y-%m-%d %H:%M:%S")
         try:
             createDate=datetime.datetime.strptime(datautw, "%Y.%m.%d.%H.%M.%S")
         except:
-             createDate=str(datetime.datetime.now())[:-7]
+             createDate=str(roundTime(datetime.datetime.now(),datetime.timedelta(minutes=15)))
              createDate=datetime.datetime.strptime(createDate, "%Y-%m-%d %H:%M:%S")
         curope.execute("select UID from EW_OPERATY where NUMER="+"'"+KERG+"'")
         operat=curope.fetchone()
@@ -68,6 +89,7 @@ for row in rows:
             operat="0"
         else:
             operat=str(operat[0])
+        #print operat
         curuser1.execute("SELECT ID from EW_USERS where EWNAME='"+userutw+"'")
         userCreate=curuser1.fetchone()
         if userCreate is None:
@@ -80,7 +102,7 @@ for row in rows:
             userMod="0"
         else:
             userMod=str(userMod[0])
-        SELECT= "select P0_X, P0_Y, P1_X, P1_Y, UID, OPERAT, STAN_ZMIANY CREATE_TS from EW_POLYLINE where XMAX<="+str(Xmax)+"AND YMAX<="+str(Ymax)+"AND XMIN>="+str(Xmin)+"AND YMIN>="+str(Ymin)+" AND STAN_ZMIANY=0"
+        SELECT= "select P0_X, P0_Y, P1_X, P1_Y, UID, OPERAT, TYP_LINII, STAN_ZMIANY CREATE_TS from EW_POLYLINE where XMAX<="+str(Xmax)+"AND YMAX<="+str(Ymax)+"AND XMIN>="+str(Xmin)+"AND YMIN>="+str(Ymin)+" AND STAN_ZMIANY=0"
         cursel.execute(SELECT)
         for selMinMax in cursel:
             #print selMinMax
@@ -96,11 +118,20 @@ for row in rows:
                 P1Y=selMinMax[3]
             begdl=sqrt((P0X-frstWKTx)**2+(P0Y-frstWKTy)**2)
             enddl=sqrt((P1X-scndWKTx)**2+(P1Y-scndWKTy)**2)
-            if begdl<tol and enddl<tol:
-                curupd.execute("update EW_POLYLINE SET OPERAT="+operat.strip("'")+",USER_CREATE="+userCreate.strip("'")+",USER_MODIFY="+userMod.strip("'")+",CREATE_TS='"+str(createDate)+"',MODIFY_TS='"+str(modDate)+"' where EW_POLYLINE.UID="+str(selMinMax[4]))
-            else:
-                begdl=sqrt((P0X-scndWKTx)**2+(P0Y-scndWKTy)**2)
-                enddl=sqrt((P1X-frstWKTx)**2+(P1Y-frstWKTy)**2)
+            if choice=='yes':
+                if begdl<tol and enddl<tol:
+                    curupd.execute("update EW_POLYLINE SET TYP_LINII="+ typlinii.strip("'") +",OPERAT="+operat.strip("'")+",USER_CREATE="+userCreate.strip("'")+",USER_MODIFY="+userMod.strip("'")+",CREATE_TS='"+str(createDate)+"',MODIFY_TS='"+str(modDate)+"' where EW_POLYLINE.UID="+str(selMinMax[4]))
+                else:
+                    begdl=sqrt((P0X-scndWKTx)**2+(P0Y-scndWKTy)**2)
+                    enddl=sqrt((P1X-frstWKTx)**2+(P1Y-frstWKTy)**2)
+                if begdl<tol and enddl<tol:
+                  curupd.execute("update EW_POLYLINE SET TYP_LINII="+ typlinii.strip("'") +",OPERAT="+operat.strip("'")+",USER_CREATE="+userCreate.strip("'")+",USER_MODIFY="+userMod.strip("'")+",CREATE_TS='"+str(createDate)+"',MODIFY_TS='"+str(modDate)+"' where EW_POLYLINE.UID="+str(selMinMax[4]))
+            elif choice=='no':
+                if begdl<tol and enddl<tol:
+                    curupd.execute("update EW_POLYLINE SET OPERAT="+operat.strip("'")+",USER_CREATE="+userCreate.strip("'")+",USER_MODIFY="+userMod.strip("'")+",CREATE_TS='"+str(createDate)+"',MODIFY_TS='"+str(modDate)+"' where EW_POLYLINE.UID="+str(selMinMax[4]))
+                else:
+                    begdl=sqrt((P0X-scndWKTx)**2+(P0Y-scndWKTy)**2)
+                    enddl=sqrt((P1X-frstWKTx)**2+(P1Y-frstWKTy)**2)
                 if begdl<tol and enddl<tol:
                   curupd.execute("update EW_POLYLINE SET OPERAT="+operat.strip("'")+",USER_CREATE="+userCreate.strip("'")+",USER_MODIFY="+userMod.strip("'")+",CREATE_TS='"+str(createDate)+"',MODIFY_TS='"+str(modDate)+"' where EW_POLYLINE.UID="+str(selMinMax[4]))
         if n % 50 == 0:
